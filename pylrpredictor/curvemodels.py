@@ -167,14 +167,20 @@ class MLCurveModel(CurveModel):
         """
         if weights is None:
             if self.recency_weighting:
-                sigma = (recency_weights(len(y))*(y-self.function(x, *popt))).std()
+                variance = np.average((y-self.function(x, *popt))**2,
+                    weights=recency_weights(len(y)))
+                sigma = np.sqrt(variance)
             else:
                 sigma = (y-self.function(x, *popt)).std()
         else:
             if self.recency_weighting:
-                sigma = (recency_weights(len(y)) * weights * (y-self.function(x, *popt))).std()
+                variance = np.average((y-self.function(x, *popt))**2,
+                    weights=recency_weights(len(y)) * weights)
+                sigma = np.sqrt(variance)
             else:
-                sigma = (weights * (y-self.function(x, *popt))).std()
+                variance = np.average((y-self.function(x, *popt))**2,
+                    weights=weights)
+                sigma = np.sqrt(variance)
         return sigma
 
     def fit_leastsq(self, x, y, weights, start_from_default):    
