@@ -21,10 +21,10 @@ def write_xlim(xlim, test_interval=2):
 
 
 def run_program(cmds):
-	process = Popen(cmds, stdout=PIPE)
-	(output, err) = process.communicate()
-	exit_code = process.wait()
-	return exit_code
+    process = Popen(cmds, stdout=PIPE)
+    (output, err) = process.communicate()
+    exit_code = process.wait()
+    return exit_code
 
 
 real_abort_learning_curve = [ 0.1126,  0.3304,  0.3844,  0.3984,  0.4128,  0.4366,  0.4536,
@@ -117,336 +117,387 @@ real_abort_ybest = .80766
 real_abort_xlim = 2850
 
 
-class TerminationCriterion(unittest.TestCase):
+class Terminationcriterion(unittest.TestCase):
 
-	def test_conservative_predict_cancel(self):
-		"""
-			The termination criterion expects the learning_curve in a file
-			called learning_curve.txt as well as the current best value in 
-			ybest.txt. We create both files and see if the termination criterion
-			correctly predicts to cancel or continue running under various artificial
-			ybest.
-		"""
-		for prob_x_greater_type in ["posterior_mean_prob_x_greater_than", "posterior_prob_x_greater_than"]:
-			np.random.seed(13)
-			#generate some data:
-			for model_name in ["pow3", "log_power"]:
-				function = all_models[model_name]
-				params = model_defaults[model_name]
-				xlim = 500
-				x = np.arange(1, xlim, 1)
-				y = function(x, **params)
-				noise = 0.0005 * np.random.randn(len(y))
-				y_noisy = y + noise
-				y_final = y_noisy[-1]
-				num_train = 200
-				np.savetxt("learning_curve.txt", y_noisy[:200])
-				write_xlim(xlim)
+    def test_conservative_predict_cancel(self):
+        """
+            The termination criterion expects the learning_curve in a file
+            called learning_curve.txt as well as the current best value in 
+            ybest.txt. We create both files and see if the termination criterion
+            correctly predicts to cancel or continue running under various artificial
+            ybest.
+        """
+        for prob_x_greater_type in ["posterior_mean_prob_x_greater_than", "posterior_prob_x_greater_than"]:
+            np.random.seed(13)
+            #generate some data:
+            for model_name in ["pow3", "log_power"]:
+                function = all_models[model_name]
+                params = model_defaults[model_name]
+                xlim = 500
+                x = np.arange(1, xlim, 1)
+                y = function(x, **params)
+                noise = 0.0005 * np.random.randn(len(y))
+                y_noisy = y + noise
+                y_final = y_noisy[-1]
+                num_train = 200
+                np.savetxt("learning_curve.txt", y_noisy[:200])
+                write_xlim(xlim)
 
-				print "Actual ybest: %f" % y_noisy[-1]
+                print "Actual ybest: %f" % y_noisy[-1]
 
-				#we set ybest to be higher than the final value of this curve
-				#hence we DO want the evaluation to stop!
-				open("ybest.txt", "w").write(str(y_final + 0.05))
-				open("termination_criterion_running", "w").write("running")
+                #we set ybest to be higher than the final value of this curve
+                #hence we DO want the evaluation to stop!
+                open("ybest.txt", "w").write(str(y_final + 0.05))
+                open("termination_criterion_running", "w").write("running")
 
-				ret = main(mode="conservative",
-					prob_x_greater_type=prob_x_greater_type,
-					nthreads=4)
-				self.assertEqual(ret, 1)
+                ret = main(mode="conservative",
+                    prob_x_greater_type=prob_x_greater_type,
+                    nthreads=4)
+                self.assertEqual(ret, 1)
 
-				self.assertTrue(os.path.exists("y_predict.txt"))
-				y_predict = float(open("y_predict.txt").read())
-				abserr = np.abs(y_predict - y_noisy[-1])
-				print "abs error %f" % abserr
-				self.assertTrue(abserr < 0.03)
+                self.assertTrue(os.path.exists("y_predict.txt"))
+                y_predict = float(open("y_predict.txt").read())
+                abserr = np.abs(y_predict - y_noisy[-1])
+                print "abs error %f" % abserr
+                self.assertTrue(abserr < 0.03)
 
-				#we set ybest to be lower than the final value of this curve
-				#hence we DON'T want the evaluation to stop!
-				open("ybest.txt", "w").write(str(y_final - 0.05))
-				open("termination_criterion_running", "w").write("running")
+                #we set ybest to be lower than the final value of this curve
+                #hence we DON'T want the evaluation to stop!
+                open("ybest.txt", "w").write(str(y_final - 0.05))
+                open("termination_criterion_running", "w").write("running")
 
-				ret = main(mode="conservative",
-					prob_x_greater_type=prob_x_greater_type,
-					nthreads=4)
-				self.assertEqual(ret, 0)
-				self.assertFalse(os.path.exists("y_predict.txt"))
-				self.assertFalse(os.path.exists("termination_criterion_running"))
-				self.assertFalse(os.path.exists("termination_criterion_running_pid"))
-		self.cleanup()
+                ret = main(mode="conservative",
+                    prob_x_greater_type=prob_x_greater_type,
+                    nthreads=4)
+                self.assertEqual(ret, 0)
+                self.assertFalse(os.path.exists("y_predict.txt"))
+                self.assertFalse(os.path.exists("termination_criterion_running"))
+                self.assertFalse(os.path.exists("termination_criterion_running_pid"))
+        self.cleanup()
 
-	def test_conservative_real_example(self):
-		"""
-			The termination criterion expects the learning_curve in a file
-			called learning_curve.txt as well as the current best value in 
-			ybest.txt. We create both files and see if the termination criterion
-			correctly predicts to cancel or continue running under various artificial
-			ybest.
-		"""
-		for prob_x_greater_type in ["posterior_mean_prob_x_greater_than", "posterior_prob_x_greater_than"]:
-			np.savetxt("learning_curve.txt", real_abort_learning_curve)
-			write_xlim(real_abort_xlim)
+    def test_conservative_real_example(self):
+        """
+            The termination criterion expects the learning_curve in a file
+            called learning_curve.txt as well as the current best value in 
+            ybest.txt. We create both files and see if the termination criterion
+            correctly predicts to cancel or continue running under various artificial
+            ybest.
+        """
+        for prob_x_greater_type in ["posterior_mean_prob_x_greater_than", "posterior_prob_x_greater_than"]:
+            np.savetxt("learning_curve.txt", real_abort_learning_curve)
+            write_xlim(real_abort_xlim)
 
-			open("ybest.txt", "w").write(str(real_abort_ybest))
-			open("termination_criterion_running", "w").write("running")
+            open("ybest.txt", "w").write(str(real_abort_ybest))
+            open("termination_criterion_running", "w").write("running")
 
-			ret = main(mode="conservative",
-				prob_x_greater_type=prob_x_greater_type,
-				nthreads=4)
-			#ybest is higher than what the curve will ever reach
-			#hence we expect to cancel the run:
-			self.assertEqual(ret, 1)
+            ret = main(mode="conservative",
+                prob_x_greater_type=prob_x_greater_type,
+                nthreads=4)
+            #ybest is higher than what the curve will ever reach
+            #hence we expect to cancel the run:
+            self.assertEqual(ret, 1)
 
-			self.assertTrue(os.path.exists("y_predict.txt"))
-			self.assertFalse(os.path.exists("termination_criterion_running"))
-			self.assertFalse(os.path.exists("termination_criterion_running_pid"))
-		self.cleanup()
+            self.assertTrue(os.path.exists("y_predict.txt"))
+            self.assertFalse(os.path.exists("termination_criterion_running"))
+            self.assertFalse(os.path.exists("termination_criterion_running_pid"))
+        self.cleanup()
 
-	def test_conservative_command_line_args(self):
-		for prob_x_greater_type in ["posterior_mean_prob_x_greater_than", "posterior_prob_x_greater_than"]:
-			np.random.seed(13)
-			#generate some data:
-			for model_name in ["pow3", "log_power"]:
-				function = all_models[model_name]
-				params = model_defaults[model_name]
-				xlim = 500
-				x = np.arange(1, xlim, 1)
-				y = function(x, **params)
-				noise = 0.0005 * np.random.randn(len(y))
-				y_noisy = y + noise
-				y_final = y_noisy[-1]
-				num_train = 200
-				np.savetxt("learning_curve.txt", y_noisy[:200])
-				write_xlim(xlim)
+    def test_conservative_command_line_args(self):
+        for prob_x_greater_type in ["posterior_mean_prob_x_greater_than", "posterior_prob_x_greater_than"]:
+            np.random.seed(13)
+            #generate some data:
+            for model_name in ["pow3", "log_power"]:
+                function = all_models[model_name]
+                params = model_defaults[model_name]
+                xlim = 500
+                x = np.arange(1, xlim, 1)
+                y = function(x, **params)
+                noise = 0.0005 * np.random.randn(len(y))
+                y_noisy = y + noise
+                y_final = y_noisy[-1]
+                num_train = 200
+                np.savetxt("learning_curve.txt", y_noisy[:200])
+                write_xlim(xlim)
 
-				print "Actual ybest: %f" % y_noisy[-1]
+                print "Actual ybest: %f" % y_noisy[-1]
 
-				#we set ybest to be higher than the final value of this curve
-				#hence we DO want the evaluation to stop!
-				open("ybest.txt", "w").write(str(y_final + 0.05))
-				open("termination_criterion_running", "w").write("running")
+                #we set ybest to be higher than the final value of this curve
+                #hence we DO want the evaluation to stop!
+                open("ybest.txt", "w").write(str(y_final + 0.05))
+                open("termination_criterion_running", "w").write("running")
 
-				ret = run_program(["python", "-m", "pylrpredictor.terminationcriterion",
-					"--nthreads", "5",
-					"--mode", "conservative", 
-					"--prob-x-greater-type", prob_x_greater_type])
-				self.assertEqual(ret, 1)
+                ret = run_program(["python", "-m", "pylrpredictor.terminationcriterion",
+                    "--nthreads", "5",
+                    "--mode", "conservative", 
+                    "--prob-x-greater-type", prob_x_greater_type])
+                self.assertEqual(ret, 1)
 
-				self.assertTrue(os.path.exists("y_predict.txt"))
-				y_predict = float(open("y_predict.txt").read())
+                self.assertTrue(os.path.exists("y_predict.txt"))
+                y_predict = float(open("y_predict.txt").read())
 
-				#we set ybest to be lower than the final value of this curve
-				#hence we DON'T want the evaluation to stop!
-				open("ybest.txt", "w").write(str(y_final - 0.05))
-				open("termination_criterion_running", "w").write("running")
+                #we set ybest to be lower than the final value of this curve
+                #hence we DON'T want the evaluation to stop!
+                open("ybest.txt", "w").write(str(y_final - 0.05))
+                open("termination_criterion_running", "w").write("running")
 
-				ret = run_program(["python", "-m", "pylrpredictor.terminationcriterion",
-					"--nthreads", "5",
-					"--mode", "conservative", 
-					"--prob-x-greater-type", prob_x_greater_type])
-				self.assertEqual(ret, 0)
-				self.assertFalse(os.path.exists("y_predict.txt"))
-				self.assertFalse(os.path.exists("termination_criterion_running"))
-				self.assertFalse(os.path.exists("termination_criterion_running_pid"))
+                ret = run_program(["python", "-m", "pylrpredictor.terminationcriterion",
+                    "--nthreads", "5",
+                    "--mode", "conservative", 
+                    "--prob-x-greater-type", prob_x_greater_type])
+                self.assertEqual(ret, 0)
+                self.assertFalse(os.path.exists("y_predict.txt"))
+                self.assertFalse(os.path.exists("termination_criterion_running"))
+                self.assertFalse(os.path.exists("termination_criterion_running_pid"))
 
-		self.cleanup()
-
-
-	def test_conservative_real_example_command_line_args(self):
-		"""
-			The termination criterion expects the learning_curve in a file
-			called learning_curve.txt as well as the current best value in 
-			ybest.txt. We create both files and see if the termination criterion
-			correctly predicts to cancel or continue running under various artificial
-			ybest.
-		"""
-		for prob_x_greater_type in ["posterior_mean_prob_x_greater_than", "posterior_prob_x_greater_than"]:
-			np.savetxt("learning_curve.txt", real_abort_learning_curve)
-			write_xlim(real_abort_xlim)
-
-			open("ybest.txt", "w").write(str(real_abort_ybest))
-			open("termination_criterion_running", "w").write("running")
-
-			ret = run_program(["python", "-m", "pylrpredictor.terminationcriterion",
-					"--nthreads", "5",
-					"--mode", "conservative", 
-					"--prob-x-greater-type", prob_x_greater_type])
-			#ybest is higher than what the curve will ever reach
-			#hence we expect to cancel the run:
-			self.assertEqual(ret, 1)
-
-			self.assertTrue(os.path.exists("y_predict.txt"))
-			self.assertFalse(os.path.exists("termination_criterion_running"))
-			self.assertFalse(os.path.exists("termination_criterion_running_pid"))
-		self.cleanup()
+        self.cleanup()
 
 
-	def test_optimistic_real_example_command_line_args(self):
-		"""
-			The termination criterion expects the learning_curve in a file
-			called learning_curve.txt as well as the current best value in 
-			ybest.txt. We create both files and see if the termination criterion
-			correctly predicts to cancel or continue running under various artificial
-			ybest.
-		"""
-		for prob_x_greater_type in ["posterior_mean_prob_x_greater_than", "posterior_prob_x_greater_than"]:
-			np.savetxt("learning_curve.txt", real_abort_learning_curve)
-			write_xlim(real_abort_xlim)
+    def test_conservative_real_example_command_line_args(self):
+        """
+            The termination criterion expects the learning_curve in a file
+            called learning_curve.txt as well as the current best value in 
+            ybest.txt. We create both files and see if the termination criterion
+            correctly predicts to cancel or continue running under various artificial
+            ybest.
+        """
+        for prob_x_greater_type in ["posterior_mean_prob_x_greater_than", "posterior_prob_x_greater_than"]:
+            np.savetxt("learning_curve.txt", real_abort_learning_curve)
+            write_xlim(real_abort_xlim)
 
-			open("ybest.txt", "w").write(str(real_abort_ybest))
-			open("termination_criterion_running", "w").write("running")
+            open("ybest.txt", "w").write(str(real_abort_ybest))
+            open("termination_criterion_running", "w").write("running")
 
-			ret = run_program(["python", "-m", "pylrpredictor.terminationcriterion",
-					"--nthreads", "5",
-					"--mode", "optimistic", 
-					"--predictive-std-threshold", str(0.05)])
-			#ybest is higher than what the curve will ever reach
-			#hence we expect to cancel the run:
-			self.assertEqual(ret, 1)
+            ret = run_program(["python", "-m", "pylrpredictor.terminationcriterion",
+                    "--nthreads", "5",
+                    "--mode", "conservative", 
+                    "--prob-x-greater-type", prob_x_greater_type,
+                    #just check that it accepts the value for predictive-std-threshold, it's set too high to have a real influenec
+                    "--predictive-std-threshold", "10."])
+            #ybest is higher than what the curve will ever reach
+            #hence we expect to cancel the run:
+            self.assertEqual(ret, 1)
 
-			ret = run_program(["python", "-m", "pylrpredictor.terminationcriterion",
-					"--nthreads", "5",
-					"--mode", "optimistic", 
-					"--predictive-std-threshold", str(0.01)])
-			#ybest is higher than what the curve will ever reach
-			#hence we expect to cancel the run:
-			self.assertEqual(ret, 1)
-
-			ret = run_program(["python", "-m", "pylrpredictor.terminationcriterion",
-					"--nthreads", "5",
-					"--mode", "optimistic"])
-			#ybest is higher than what the curve will ever reach
-			#hence we expect to cancel the run:
-			self.assertEqual(ret, 1)
-
-			self.assertTrue(os.path.exists("y_predict.txt"))
-			self.assertFalse(os.path.exists("termination_criterion_running"))
-			self.assertFalse(os.path.exists("termination_criterion_running_pid"))
-		self.cleanup()
+            self.assertTrue(os.path.exists("y_predict.txt"))
+            self.assertFalse(os.path.exists("termination_criterion_running"))
+            self.assertFalse(os.path.exists("termination_criterion_running_pid"))
+        self.cleanup()
 
 
-	def test_optimistic_predict_cancel(self):
-		"""
-			Optimisitic mode
+    def test_optimistic_real_example_command_line_args(self):
+        """
+            The termination criterion expects the learning_curve in a file
+            called learning_curve.txt as well as the current best value in 
+            ybest.txt. We create both files and see if the termination criterion
+            correctly predicts to cancel or continue running under various artificial
+            ybest.
+        """
+        for prob_x_greater_type in ["posterior_mean_prob_x_greater_than", "posterior_prob_x_greater_than"]:
+            np.savetxt("learning_curve.txt", real_abort_learning_curve)
+            write_xlim(real_abort_xlim)
 
-			The termination criterion expects the learning_curve in a file
-			called learning_curve.txt as well as the current best value in 
-			ybest.txt. We create both files and see if the termination criterion
-			correctly predicts to cancel or continue running under various artificial
-			ybest.
-		"""
-		for prob_x_greater_type in ["posterior_mean_prob_x_greater_than", "posterior_prob_x_greater_than"]:
-			np.random.seed(13)
-			#generate some data:
+            open("ybest.txt", "w").write(str(real_abort_ybest))
+            open("termination_criterion_running", "w").write("running")
 
-			model_name = "pow3"
-			function = all_models[model_name]
+            ret = run_program(["python", "-m", "pylrpredictor.terminationcriterion",
+                    "--nthreads", "5",
+                    "--mode", "optimistic", 
+                    "--predictive-std-threshold", str(0.05)])
+            #ybest is higher than what the curve will ever reach
+            #hence we expect to cancel the run:
+            self.assertEqual(ret, 1)
 
-			params = {'a': 0.52, 'alpha': 0.2, 'c': 0.84}
-			xlim = 500
-			x = np.arange(1, xlim, 1)
-			y = function(x, **params)
-			noise = 0.01 * np.random.randn(len(y))
-			y_noisy = y + noise
-			y_final = y_noisy[-1]
-			num_train = 30
-			np.savetxt("learning_curve.txt", y_noisy[:num_train])
-			write_xlim(xlim)
+            ret = run_program(["python", "-m", "pylrpredictor.terminationcriterion",
+                    "--nthreads", "5",
+                    "--mode", "optimistic", 
+                    "--predictive-std-threshold", str(0.01)])
+            #ybest is higher than what the curve will ever reach
+            #hence we expect to cancel the run:
+            self.assertEqual(ret, 1)
 
-			#first check:
-			#if there's no ybest and the predictive_std is high
-			#then we want the evaluation to continue
-			if os.path.exists("ybest.txt"):
-				os.remove("ybest.txt")
-			ret = main(mode="optimistic",
-				prob_x_greater_type=prob_x_greater_type,
-				nthreads=4)
-			self.assertEqual(ret, 0)
+            ret = run_program(["python", "-m", "pylrpredictor.terminationcriterion",
+                    "--nthreads", "5",
+                    "--mode", "optimistic"])
+            #ybest is higher than what the curve will ever reach
+            #hence we expect to cancel the run:
+            self.assertEqual(ret, 1)
 
-			print "Actual ybest: %f" % y_noisy[-1]
-
-			#we set ybest to be higher than the final value of this curve
-			#hence we DO want the evaluation to stop!
-			open("ybest.txt", "w").write(str(y_final + 0.05))
-			open("termination_criterion_running", "w").write("running")
-
-			ret = main(mode="optimistic",
-				prob_x_greater_type=prob_x_greater_type,
-				nthreads=4)
-			self.assertEqual(ret, 1)
-
-			self.assertTrue(os.path.exists("y_predict.txt"))
-			y_predict = float(open("y_predict.txt").read())
-			abserr = np.abs(y_predict-y_noisy[-1])
-			self.assertTrue(abserr < 0.05)
-			print "abs error %f" % abserr
-
-			#we set ybest to be lower than the final value of this curve
-			#hence we DON'T want the evaluation to stop!
-			#we assume here that because the model was set up like this 
-			#the predictive_std is above (it should actually be around 0.019)
-			open("ybest.txt", "w").write(str(y_final - 0.05))
-			open("termination_criterion_running", "w").write("running")
-
-			ret = main(mode="optimistic", nthreads=4)
-			self.assertEqual(ret, 0)
-			self.assertFalse(os.path.exists("y_predict.txt"))
-			self.assertFalse(os.path.exists("termination_criterion_running"))
-			self.assertFalse(os.path.exists("termination_criterion_running_pid"))
-
-			num_train = 300
-			np.savetxt("learning_curve.txt", y_noisy[:num_train])
-			#we set ybest to be lower than the final value of this curve
-			#HOWEVER we except the predictive std to be around .0027
-			#so the the run should be cancelled nevertheless
-			open("ybest.txt", "w").write(str(y_final - 0.05))
-			open("termination_criterion_running", "w").write("running")
-
-			ret = main(mode="optimistic",
-				prob_x_greater_type=prob_x_greater_type,
-				nthreads=4)
-			self.assertEqual(ret, 1)
-			self.assertTrue(os.path.exists("y_predict.txt"))
-			y_predict = float(open("y_predict.txt").read())
-			abserr = np.abs(y_predict-y_noisy[-1])
-			self.assertTrue(abserr < 0.05)
-			print "abs error %f" % abserr
-
-			self.assertFalse(os.path.exists("termination_criterion_running"))
-			self.assertFalse(os.path.exists("termination_criterion_running_pid"))
-
-		self.cleanup()
+            self.assertTrue(os.path.exists("y_predict.txt"))
+            self.assertFalse(os.path.exists("termination_criterion_running"))
+            self.assertFalse(os.path.exists("termination_criterion_running_pid"))
+        self.cleanup()
 
 
-	def test_error_logging(self):
-		"""
-			Test in case of an error, the error will be logged.
-		"""
-		open("ybest.txt", "w").write(str(0.5))
-		#Let's e.g. run main without creating any files
-		if os.path.exists("learning_curve.txt"):
-			os.remove("learning_curve.txt")
-		ret = main()
-		self.assertTrue(os.path.exists("term_crit_error.txt"))
 
-		os.remove("ybest.txt")
+    def test_conservative_predictive_std_predict_cancel(self):
+        for prob_x_greater_type in ["posterior_mean_prob_x_greater_than", "posterior_prob_x_greater_than"]:
+            np.random.seed(13)
+            #generate some data:
+
+            model_name = "pow3"
+            function = all_models[model_name]
+
+            params = {'a': 0.52, 'alpha': 0.2, 'c': 0.84}
+            xlim = 500
+            x = np.arange(1, xlim, 1)
+            y = function(x, **params)
+            noise = 0.01 * np.random.randn(len(y))
+            y_noisy = y + noise
+            y_final = y_noisy[-1]
+            num_train = 30
+            np.savetxt("learning_curve.txt", y_noisy[:num_train])
+            write_xlim(xlim)
+
+            #first check:
+            #if there's no ybest and the predictive_std is high
+            #then we want the evaluation to continue
+            if os.path.exists("ybest.txt"):
+                os.remove("ybest.txt")
+            ret = main(mode="conservative",
+                prob_x_greater_type=prob_x_greater_type,
+                predictive_std_threshold=0.00001,
+                nthreads=4)
+            self.assertEqual(ret, 0)
+
+            print "Actual ybest: %f" % y_noisy[-1]
+
+            #we set ybest to be higher than the final value of this curve
+            #BUT because the predictive std is still high we don't want to stop
+            open("ybest.txt", "w").write(str(y_final + 0.05))
+            open("termination_criterion_running", "w").write("running")
+
+            ret = main(mode="conservative",
+                prob_x_greater_type=prob_x_greater_type,
+                predictive_std_threshold=0.00001,
+                nthreads=4)
+            self.assertEqual(ret, 0)
+
+            self.assertFalse(os.path.exists("y_predict.txt"))
+
+        self.cleanup()
 
 
-	def cleanup(self):
-		if os.path.exists("learning_curve.txt"):
-			os.remove("learning_curve.txt")
-		if os.path.exists("ybest.txt"):	
-			os.remove("ybest.txt")
-		if os.path.exists("termination_criterion_running"):	
-			os.remove("termination_criterion_running")
-		if os.path.exists("term_crit_error.txt"):	
-			os.remove("term_crit_error.txt")
+    def test_optimistic_predict_cancel(self):
+        """
+            Optimisitic mode
+
+            The termination criterion expects the learning_curve in a file
+            called learning_curve.txt as well as the current best value in 
+            ybest.txt. We create both files and see if the termination criterion
+            correctly predicts to cancel or continue running under various artificial
+            ybest.
+        """
+        for prob_x_greater_type in ["posterior_mean_prob_x_greater_than", "posterior_prob_x_greater_than"]:
+            np.random.seed(13)
+            #generate some data:
+
+            model_name = "pow3"
+            function = all_models[model_name]
+
+            params = {'a': 0.52, 'alpha': 0.2, 'c': 0.84}
+            xlim = 500
+            x = np.arange(1, xlim, 1)
+            y = function(x, **params)
+            noise = 0.01 * np.random.randn(len(y))
+            y_noisy = y + noise
+            y_final = y_noisy[-1]
+            num_train = 30
+            np.savetxt("learning_curve.txt", y_noisy[:num_train])
+            write_xlim(xlim)
+
+            #first check:
+            #if there's no ybest and the predictive_std is high
+            #then we want the evaluation to continue
+            if os.path.exists("ybest.txt"):
+                os.remove("ybest.txt")
+            ret = main(mode="optimistic",
+                prob_x_greater_type=prob_x_greater_type,
+                nthreads=4)
+            self.assertEqual(ret, 0)
+
+            print "Actual ybest: %f" % y_noisy[-1]
+
+            #we set ybest to be higher than the final value of this curve
+            #hence we DO want the evaluation to stop!
+            open("ybest.txt", "w").write(str(y_final + 0.05))
+            open("termination_criterion_running", "w").write("running")
+
+            ret = main(mode="optimistic",
+                prob_x_greater_type=prob_x_greater_type,
+                nthreads=4)
+            self.assertEqual(ret, 1)
+
+            self.assertTrue(os.path.exists("y_predict.txt"))
+            y_predict = float(open("y_predict.txt").read())
+            abserr = np.abs(y_predict-y_noisy[-1])
+            self.assertTrue(abserr < 0.05)
+            print "abs error %f" % abserr
+
+            #we set ybest to be lower than the final value of this curve
+            #hence we DON'T want the evaluation to stop!
+            #we assume here that because the model was set up like this 
+            #the predictive_std is above (it should actually be around 0.019)
+            open("ybest.txt", "w").write(str(y_final - 0.05))
+            open("termination_criterion_running", "w").write("running")
+
+            ret = main(mode="optimistic", nthreads=4)
+            self.assertEqual(ret, 0)
+            self.assertFalse(os.path.exists("y_predict.txt"))
+            self.assertFalse(os.path.exists("termination_criterion_running"))
+            self.assertFalse(os.path.exists("termination_criterion_running_pid"))
+
+            num_train = 300
+            np.savetxt("learning_curve.txt", y_noisy[:num_train])
+            #we set ybest to be lower than the final value of this curve
+            #HOWEVER we except the predictive std to be around .0027
+            #so the the run should be cancelled nevertheless
+            open("ybest.txt", "w").write(str(y_final - 0.05))
+            open("termination_criterion_running", "w").write("running")
+
+            ret = main(mode="optimistic",
+                prob_x_greater_type=prob_x_greater_type,
+                nthreads=4)
+            self.assertEqual(ret, 1)
+            self.assertTrue(os.path.exists("y_predict.txt"))
+            y_predict = float(open("y_predict.txt").read())
+            abserr = np.abs(y_predict-y_noisy[-1])
+            self.assertTrue(abserr < 0.05)
+            print "abs error %f" % abserr
+
+            self.assertFalse(os.path.exists("termination_criterion_running"))
+            self.assertFalse(os.path.exists("termination_criterion_running_pid"))
+
+        self.cleanup()
 
 
-	def test_predict_no_cancel(self):
-		pass
+    def test_error_logging(self):
+        """
+            Test in case of an error, the error will be logged.
+        """
+        open("ybest.txt", "w").write(str(0.5))
+        #Let's e.g. run main without creating any files
+        if os.path.exists("learning_curve.txt"):
+            os.remove("learning_curve.txt")
+        ret = main()
+        self.assertTrue(os.path.exists("term_crit_error.txt"))
+
+        os.remove("ybest.txt")
+
+
+    def cleanup(self):
+        if os.path.exists("learning_curve.txt"):
+            os.remove("learning_curve.txt")
+        if os.path.exists("ybest.txt"):    
+            os.remove("ybest.txt")
+        if os.path.exists("termination_criterion_running"):    
+            os.remove("termination_criterion_running")
+        if os.path.exists("term_crit_error.txt"):    
+            os.remove("term_crit_error.txt")
+
+
+    def test_predict_no_cancel(self):
+        pass
 
 
 
 if __name__ == "__main__":
-	unittest.main()
+    unittest.main()

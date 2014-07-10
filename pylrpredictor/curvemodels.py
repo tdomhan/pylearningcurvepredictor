@@ -330,7 +330,8 @@ class MCMCCurveModel(CurveModel):
             function_der=function_der,
             min_vals=self.min_vals,
             max_vals=self.max_vals,
-            default_vals=self.default_vals)
+            default_vals=self.default_vals,
+            recency_weighting=recency_weighting)
 
         #TODO: have two burn-ins, one for when the ML fitting is successful and one for when not!
         self.burn_in = burn_in
@@ -547,7 +548,7 @@ class MCMCCurveModelCombination(object):
             xlim,
             burn_in=600,
             nwalkers=100,
-            nsamples=2000,
+            nsamples=3600,
             normalize_weights=True,
             monotonicity_constraint=True,
             soft_monotonicity_constraint=False,
@@ -580,6 +581,15 @@ class MCMCCurveModelCombination(object):
             print "fit_ml_individual failed"
             return False
 
+    def y_lim_sanity_check(self, ylim):
+        # just make sure that the prediction is not below 0 nor insanely big
+        # HOWEVER: there might be cases where some models might predict value larger than 1.0
+        # and this is alright, because in those cases we don't necessarily want to stop a run.
+        if ylim < 0. or ylim > 100.0:
+            return False
+        else:
+            return True
+
     def fit_ml_individual(self, x, y, model_weights):
         """
             Do a ML fit for each model individually and then another ML fit for the combination of models.
@@ -587,12 +597,8 @@ class MCMCCurveModelCombination(object):
         self.fit_models = []
         for model in self.ml_curve_models:
             if model.fit(x, y):
-                #do some sanity checks:
                 ylim = model.predict(self.xlim)
-                # just make sure that the prediction is not below 0 nor insanely big
-                # HOWEVER: there might be cases where some models might predict value larger than 1.0
-                # and this is alright, because in those cases we don't necessarily want to stop a run.
-                if ylim < 0. or ylim > 100.0:
+                if not self.y_lim_sanity_check(ylim):
                     print "ML fit of model %s is out of bound range [0.0, 100.] at xlim." % (model.function.__name__)
                     continue
                 params, sigma = model.split_theta_to_array(model.ml_params)
@@ -716,7 +722,12 @@ class MCMCCurveModelCombination(object):
             y_mon = model.function(x_mon, *params)
             if y_mon[0] > y_mon[-1]:
                 return -np.inf
-        return 0.0
+        ylim = model.function(self.xlim, *params)
+        #sanity check for ylim
+        if not self.y_lim_sanity_check(ylim):
+            return -np.inf
+        else:
+            return 0.0
 
     #likelihood
     def ln_likelihood(self, theta, x, y):

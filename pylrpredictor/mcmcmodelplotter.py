@@ -16,14 +16,15 @@ class MCMCCurveModelPlotter(object):
     def __init__(self, model):
         self.model = model
         
-    def trace_plot(self):
+    def trace_plot(self,rasterized=False):
         num_plots = len(self.model.all_param_names)
         
         fig, axes = subplots(num_plots, 1, sharex=True, figsize=(8, 9))
         
         for idx, param_name in enumerate(self.model.all_param_names):
         
-            axes[idx].plot(self.model.mcmc_chain[:, :, idx].T, color="k", alpha=0.4)
+            axes[idx].plot(self.model.mcmc_chain[:, :, idx].T, color="k",
+                alpha=0.4, rasterized=rasterized)
             axes[idx].yaxis.set_major_locator(MaxNLocator(5))
             #axes[0].axhline(m_true, color="#888888", lw=2)
             axes[idx].set_ylabel("$%s$" % param_name)
@@ -34,19 +35,24 @@ class MCMCCurveModelPlotter(object):
         tight_layout(h_pad=0.0)
         
 
-    def triangle_plot(self, labels=None):
+    def triangle_plot(self, labels=None, truths=None):
         samples = self.model.get_burned_in_samples()
         if labels is None:
             labels = greek_label_mapping(self.model.all_param_names)
         fig = triangle.corner(samples,
-            labels=labels)
+            labels=labels,
+            truths=truths)
 
     def posterior_sample_plot(self, x, y, vline=None,
-            xaxislabel="$x$", yaxislabel="$y$", alpha=0.1,
-            label="", color="k", x_axis_scale=0.1, nsamples=50):
+            xaxislabel="$x$", yaxislabel="$y$", alpha=0.3,
+            label="", color="k", x_axis_scale=0.1, nsamples=50,
+            plot_ml_estimate=False, ml_estimate_color="#4682b4",
+            rasterized=False):
         samples = self.model.get_burned_in_samples()
 
         x_plot = x_axis_scale*np.asarray(x)
+
+        plot(x_plot, y, color="r", lw=2, alpha=0.8, rasterized=rasterized)
 
         # Plot some samples onto the data.
         for idx, theta in enumerate(samples[np.random.randint(len(samples), size=nsamples)]):
@@ -55,12 +61,18 @@ class MCMCCurveModelPlotter(object):
             predictive_mu, sigma = self.model.predict_given_theta(x, theta)
 
             if idx == 0:
-                plot(x_plot, predictive_mu, color=color, alpha=alpha, label=label)
+                plot(x_plot, predictive_mu, color=color, alpha=alpha, label=label, rasterized=rasterized)
             else:
-                plot(x_plot, predictive_mu, color=color, alpha=alpha)
-            fill_between(x_plot, predictive_mu-2*sigma, predictive_mu+2*sigma, color=color, alpha=0.01)
+                plot(x_plot, predictive_mu, color=color, alpha=alpha, rasterized=rasterized)
+            fill_between(x_plot, predictive_mu-sigma, predictive_mu+sigma, color=color, alpha=0.01, rasterized=rasterized)
 
-        plot(x_plot, y, color="r", lw=2, alpha=0.8)
+        if plot_ml_estimate:
+            ml_theta = self.model.ml_curve_model.ml_params
+            predictive_mu, sigma = self.model.predict_given_theta(x, ml_theta)
+            plot(x_plot, predictive_mu, alpha=1.0, color=ml_estimate_color, lw=3, rasterized=rasterized)
+            fill_between(x_plot, predictive_mu-sigma, predictive_mu+sigma, color=ml_estimate_color, alpha=0.3, rasterized=rasterized)
+
+        
         if vline is not None:
             axvline(x_axis_scale*vline, color="k")
         ylim(0, 1)
