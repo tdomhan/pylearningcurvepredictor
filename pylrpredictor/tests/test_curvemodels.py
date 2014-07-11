@@ -1,4 +1,5 @@
-from pylrpredictor.curvemodels import CurveModel, MLCurveMovel, LinearCurveModel
+from pylrpredictor.curvemodels import CurveModel, MLCurveModel, LinearCurveModel
+from pylrpredictor.curvemodels import masked_mean_x_greater_than
 import unittest
 import numpy as np
 import random
@@ -37,6 +38,18 @@ class CurveModelTest(unittest.TestCase):
 	        print "original params vs fit params:"
 	        print params
 	        print m.ml_params
+
+	def test_masked_mean_x_greater_than(self):
+		self.assertAlmostEqual(0.5, masked_mean_x_greater_than([0.1, 0.9], 0.5))
+
+		self.assertAlmostEqual(0.5, masked_mean_x_greater_than([0.1, 0.9, np.nan], 0.5))
+
+		self.assertAlmostEqual(2./3., masked_mean_x_greater_than([0.1, 0.9, 0.8, np.nan], 0.5))
+
+		self.assertAlmostEqual(0., masked_mean_x_greater_than([0.1, 0.1, 0.15, np.nan], 0.5))
+
+		self.assertAlmostEqual(1., masked_mean_x_greater_than([0.8, 0.9, np.nan], 0.5))
+
 
 	#def test_ml_fit(self):
 #		model1 = random.choice(all_models.keys())

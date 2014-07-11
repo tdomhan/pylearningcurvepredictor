@@ -14,6 +14,13 @@ def recency_weights(num):
     recency_weights = recency_weights**(np.arange(0, num))
     return recency_weights
 
+def masked_mean_x_greater_than(posterior_distribution, y):
+    """
+        P(E[f(x)] > E[y] | Data)
+    """
+    predictions = np.ma.masked_invalid(posterior_distribution)
+    return np.sum(predictions > y) / float(np.sum(~predictions.mask))
+
 
 class CurveModel(object):
 
@@ -432,6 +439,20 @@ class MCMCCurveModel(CurveModel):
         mu = self.function(x, **params)
         cdf = norm.cdf(y, loc=mu, scale=sigma)
         return 1. - cdf
+
+
+    def posterior_mean_prob_x_greater_than(self, x, y, thin=1):
+        """
+            P(E[f(x)] > E[y] | Data)
+
+            thin: only use every thin'th sample
+        
+            Posterior probability that the expected valuef(x) is greater than 
+            the expected value of y.
+        """
+        posterior_distribution = self.predictive_distribution(x, thin)
+        return masked_mean_x_greater_than(posterior_distribution, y)
+
 
     def posterior_prob_x_greater_than(self, x, y):
         """
@@ -889,6 +910,7 @@ class MCMCCurveModelCombination(object):
             probs.append(self.prob_x_greater_than(x, y, theta))
         return np.ma.masked_invalid(probs).mean()
 
+
     def posterior_mean_prob_x_greater_than(self, x, y, thin=1):
         """
             P(E[f(x)] > E[y] | Data)
@@ -898,9 +920,9 @@ class MCMCCurveModelCombination(object):
             Posterior probability that the expected valuef(x) is greater than 
             the expected value of y.
         """
-        predictions = np.ma.masked_invalid(self.predictive_distribution(x, thin))
-        
-        return np.sum(predictions > y) / float(np.sum(~predictions.mask))
+        posterior_distribution = self.predictive_distribution(x, thin)
+        return masked_mean_x_greater_than(posterior_distribution, y)
+
 
     def predictive_distribution(self, x, thin=1):
         assert isinstance(x, float) or isinstance(x, int)

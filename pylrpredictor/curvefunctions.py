@@ -219,7 +219,6 @@ curve_combination_models_old = ["vap", "ilog2", "weibull", "pow3", "pow4", "logl
 curve_combination_models = ["weibull", "pow4", "mmf", "pow3", "loglog_linear",
                             "janoschek", "dr_hill_zero_background", "log_power", "exp4"]
 
-
 curve_ensemble_models = ["vap", "ilog2", "weibull", "pow3", "pow4", "loglog_linear",
                          "mmf", "janoschek", "dr_hill_zero_background", "log_power",
                          "exp4"]
