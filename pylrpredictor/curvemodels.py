@@ -404,11 +404,11 @@ class MCMCCurveModel(CurveModel):
         samples = self.mcmc_chain[:, self.burn_in:, :].reshape((-1, self.ndim))
         return samples
 
-    def predictive_distribution(self, x):
+    def predictive_distribution(self, x, thin=1):
         assert isinstance(x, float) or isinstance(x, int)
         samples = self.get_burned_in_samples()
         predictions = []
-        for theta in samples:
+        for theta in samples[::thin]:
             params, sigma = self.split_theta(theta)
             predictions.append(self.function(x, **params))
         return np.asarray(predictions)
@@ -471,6 +471,13 @@ class MCMCCurveModel(CurveModel):
 
     def posterior_log_likelihood(self, x, y):
         return self.median_posterior_log_likelihood(x, y)
+
+    def predictive_std(self, x, thin=1):
+        """
+           sqrt(Var[f(x)])
+        """
+        predictions = self.predictive_distribution(x, thin)
+        return np.ma.masked_invalid(predictions).std()
 
     def dic(self, x, y):
         """ Deviance Information Criterion. """
