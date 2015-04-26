@@ -58,7 +58,12 @@ def get_xlim():
     assert os.path.exists("caffenet_solver.prototxt")
     solver = caffe_pb2.SolverParameter()
     solver_txt = open("caffenet_solver.prototxt").read()
-    google.protobuf.text_format.Merge(solver_txt, solver)
+    try:
+        google.protobuf.text_format.Merge(solver_txt, solver)
+    except Exception as e:
+        #this may happen if fields are added. However everything else should be parse
+        #hence, it's ok to be ignored
+        print "error parsing solver: ", str(e)
     assert solver.max_iter > 0
     assert solver.test_interval > 0
     return solver.max_iter / float(solver.test_interval)

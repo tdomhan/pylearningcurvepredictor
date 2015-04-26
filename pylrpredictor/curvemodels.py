@@ -10,9 +10,12 @@ from scipy.misc import logsumexp
 from curvefunctions import all_models
 
 def recency_weights(num):
-    recency_weights = [10**(1./num)] * num
-    recency_weights = recency_weights**(np.arange(0, num))
-    return recency_weights
+    if num == 1:
+        return np.ones(1)
+    else:
+        recency_weights = [10**(1./num)] * num
+        recency_weights = recency_weights**(np.arange(0, num))
+        return recency_weights
 
 def masked_mean_x_greater_than(posterior_distribution, y):
     """
@@ -321,6 +324,7 @@ class MCMCCurveModel(CurveModel):
                  burn_in=300,
                  nwalkers=100,
                  nsamples=800,
+                 nthreads=1,
                  recency_weighting=False):
         """
             function: the function to be fit
@@ -344,6 +348,7 @@ class MCMCCurveModel(CurveModel):
         self.burn_in = burn_in
         self.nwalkers = nwalkers
         self.nsamples = nsamples
+        self.nthreads = nthreads
         self.recency_weighting = recency_weighting
     
     def fit(self, x, y):
@@ -379,8 +384,7 @@ class MCMCCurveModel(CurveModel):
         params, sigma = self.split_theta(theta)
         y_model = self.function(x, **params)
         if self.recency_weighting:
-            weight = [10**(1./len(y))] * len(y)
-            weight = weight**(np.arange(0, len(y)))
+            weight = recency_weights(len(y))
             ln_likelihood = (weight*norm.logpdf(y-y_model, loc=0, scale=sigma)).sum()
         else:
             ln_likelihood = norm.logpdf(y-y_model, loc=0, scale=sigma).sum()
@@ -403,7 +407,18 @@ class MCMCCurveModel(CurveModel):
         #pos = [start + 1e-4*np.random.randn(self.ndim) for i in range(self.nwalkers)]
         assert self.ml_curve_model.ml_params is not None
         pos = [self.ml_curve_model.ml_params + 1e-6*np.random.randn(self.ndim) for i in range(self.nwalkers)]
-        sampler = emcee.EnsembleSampler(self.nwalkers, self.ndim, self.ln_prob, args=(x, y))
+        if self.nthreads <= 1:
+            sampler = emcee.EnsembleSampler(self.nwalkers,
+                self.ndim,
+                self.ln_prob,
+                args=(x, y))
+        else:
+            sampler = emcee.EnsembleSampler(
+                self.nwalkers,
+                self.ndim,
+                model_ln_prob,
+                args=(self, x, y),
+                threads=self.nthreads)
         sampler.run_mcmc(pos, self.nsamples)
         self.mcmc_chain = sampler.chain
         
@@ -419,6 +434,40 @@ class MCMCCurveModel(CurveModel):
             params, sigma = self.split_theta(theta)
             predictions.append(self.function(x, **params))
         return np.asarray(predictions)
+
+    def predictive_ln_prob_distribution(self, x, y, thin=1):
+        """
+            posterior log p(y|x,D) for each sample
+        """
+        #assert isinstance(x, float) or isinstance(x, int)
+        samples = self.get_burned_in_samples()
+        ln_probs = []
+        for theta in samples[::thin]:
+            ln_prob = self.ln_likelihood(theta, x, y)
+            ln_probs.append(ln_prob)
+        return np.asarray(ln_probs)
+
+    def posterior_ln_prob(self, x, y, thin=10):
+        """
+            posterior log p(y|x,D)
+
+            1/S sum p(y|D,theta_s)
+            equivalent to:
+            logsumexp(log p(y|D,theta_s)) - log(S)
+        """
+        assert not np.isscalar(x)
+        assert not np.isscalar(y)
+        x = np.asarray(x)
+        y = np.asarray(y)
+        ln_probs = self.predictive_ln_prob_distribution(x, y)
+        #print ln_probs
+        #print np.max(ln_probs)
+        #print np.min(ln_probs)
+        #print np.mean(ln_probs)
+        #print "logsumexp(ln_probs)", logsumexp(ln_probs)
+        #print "np.log(len(ln_probs)) ", np.log(len(ln_probs))
+        #print logsumexp(ln_probs) - np.log(len(ln_probs))
+        return logsumexp(ln_probs) - np.log(len(ln_probs))
 
     def predict(self, x):
         """
@@ -440,7 +489,6 @@ class MCMCCurveModel(CurveModel):
         cdf = norm.cdf(y, loc=mu, scale=sigma)
         return 1. - cdf
 
-
     def posterior_mean_prob_x_greater_than(self, x, y, thin=1):
         """
             P(E[f(x)] > E[y] | Data)
@@ -454,7 +502,7 @@ class MCMCCurveModel(CurveModel):
         return masked_mean_x_greater_than(posterior_distribution, y)
 
 
-    def posterior_prob_x_greater_than(self, x, y):
+    def posterior_prob_x_greater_than(self, x, y, thin=1):
         """
             P(f(x) > y | Data)
         
@@ -464,12 +512,13 @@ class MCMCCurveModel(CurveModel):
         assert isinstance(y, float) or isinstance(y, int)
         probs = []
         samples = self.get_burned_in_samples()
-        for theta in samples:
+        for theta in samples[::thin]:
             probs.append(self.prob_x_greater_than(x, y, theta))
 
         return np.ma.masked_invalid(probs).mean()
 
     def posterior_log_likelihoods(self, x, y):
+        #DEPRECATED!
         samples = self.get_burned_in_samples()
         log_likelihoods = []
         for theta in samples:
@@ -481,16 +530,20 @@ class MCMCCurveModel(CurveModel):
         return log_likelihoods
 
     def mean_posterior_log_likelihood(self, x, y):
+        #DEPRECATED!
         return np.ma.masked_invalid(self.posterior_log_likelihoods(x, y)).mean()
 
     def median_posterior_log_likelihood(self, x, y):
+        #DEPRECATED!
         masked_x = np.ma.masked_invalid(self.posterior_log_likelihoods(x, y))
         return np.ma.extras.median(masked_x)
 
     def max_posterior_log_likelihood(self, x, y):
+        #DEPRECATED!
         return np.ma.masked_invalid(self.posterior_log_likelihoods(x, y)).max()
 
     def posterior_log_likelihood(self, x, y):
+        #DEPRECATED!
         return self.median_posterior_log_likelihood(x, y)
 
     def predictive_std(self, x, thin=1):
@@ -574,12 +627,16 @@ class MCMCCurveModelCombination(object):
     def __init__(self,
             ml_curve_models,
             xlim,
-            burn_in=400,
+            burn_in=500,
             nwalkers=100,
-            nsamples=2400,
+            nsamples=2500,
             normalize_weights=True,
             monotonicity_constraint=True,
             soft_monotonicity_constraint=False,
+            initial_model_weight_ml_estimate=False,
+            normalized_weights_initialization="constant",
+            strictly_positive_weights=True,
+            sanity_check_prior=True,
             nthreads=1,
             recency_weighting=True):
         """
@@ -594,6 +651,10 @@ class MCMCCurveModelCombination(object):
         assert not (monotonicity_constraint and soft_monotonicity_constraint), "choose either the monotonicity_constraint or the soft_monotonicity_constraint, but not both"
         self.monotonicity_constraint = monotonicity_constraint
         self.soft_monotonicity_constraint = soft_monotonicity_constraint
+        self.initial_model_weight_ml_estimate = initial_model_weight_ml_estimate
+        self.normalized_weights_initialization = normalized_weights_initialization
+        self.strictly_positive_weights = strictly_positive_weights
+        self.sanity_check_prior = sanity_check_prior
         self.nthreads = nthreads
         self.recency_weighting = recency_weighting
         #the constant used for initializing the parameters in a ball around the ML parameters
@@ -613,7 +674,7 @@ class MCMCCurveModelCombination(object):
         # just make sure that the prediction is not below 0 nor insanely big
         # HOWEVER: there might be cases where some models might predict value larger than 1.0
         # and this is alright, because in those cases we don't necessarily want to stop a run.
-        if ylim < 0. or ylim > 100.0:
+        if not np.isfinite(ylim) or ylim < 0. or ylim > 100.0:
             return False
         else:
             return True
@@ -640,18 +701,26 @@ class MCMCCurveModelCombination(object):
 
         if model_weights is None:
             if self.normalize_weights:
-                model_weights = [10. for model in self.fit_models]
+                if self.normalized_weights_initialization == "constant":
+                    #initialize with a constant value
+                    #we will sample in this unnormalized space and then later normalize
+                    model_weights = [10. for model in self.fit_models]
+                else:# self.normalized_weights_initialization == "normalized"
+                    model_weights = [1./len(self.fit_models) for model in self.fit_models]
             else:
-                model_weights = self.get_ml_model_weights(x, y)
-                print model_weights
-                non_zero_fit_models = []
-                non_zero_weights = []
-                for w, model in zip(model_weights, self.fit_models):
-                    if w > 1e-4:
-                        non_zero_fit_models.append(model)
-                        non_zero_weights.append(w)
-                self.fit_models = non_zero_fit_models
-                model_weights = non_zero_weights
+                if self.initial_model_weight_ml_estimate:
+                    model_weights = self.get_ml_model_weights(x, y)
+                    print model_weights
+                    non_zero_fit_models = []
+                    non_zero_weights = []
+                    for w, model in zip(model_weights, self.fit_models):
+                        if w > 1e-4:
+                            non_zero_fit_models.append(model)
+                            non_zero_weights.append(w)
+                    self.fit_models = non_zero_fit_models
+                    model_weights = non_zero_weights
+                else:
+                    model_weights = [1./len(self.fit_models) for model in self.fit_models]
 
         #build joint ml estimated parameter vector
         model_params = []
@@ -730,7 +799,7 @@ class MCMCCurveModelCombination(object):
         #if self.normalize_weights:
             #when we normalize we expect all weights to be positive
         #we expect all weights to be positive
-        if np.any(model_weights < 0):
+        if self.strictly_positive_weights and np.any(model_weights < 0):
             return -np.inf
         return ln
 
@@ -752,7 +821,7 @@ class MCMCCurveModelCombination(object):
                 return -np.inf
         ylim = model.function(self.xlim, *params)
         #sanity check for ylim
-        if not self.y_lim_sanity_check(ylim):
+        if self.sanity_check_prior and not self.y_lim_sanity_check(ylim):
             return -np.inf
         else:
             return 0.0
@@ -762,8 +831,7 @@ class MCMCCurveModelCombination(object):
         y_model, sigma = self.predict_given_theta(x, theta)
 
         if self.recency_weighting:
-            weight = [10**(1./len(y))] * len(y)
-            weight = weight**(np.arange(0, len(y)))
+            weight = recency_weights(len(y))
             ln_likelihood = (weight*norm.logpdf(y-y_model, loc=0, scale=sigma)).sum()
         else:
             ln_likelihood = norm.logpdf(y-y_model, loc=0, scale=sigma).sum()
@@ -933,6 +1001,33 @@ class MCMCCurveModelCombination(object):
             y_predicted = self.predict_given_params(x, model_params, model_weights)
             predictions.append(y_predicted)
         return np.asarray(predictions)
+
+    def predictive_ln_prob_distribution(self, x, y, thin=1):
+        """
+            posterior log p(y|x,D) for each sample
+        """
+        #assert isinstance(x, float) or isinstance(x, int)
+        samples = self.get_burned_in_samples()
+        ln_probs = []
+        for theta in samples[::thin]:
+            ln_prob = self.ln_likelihood(theta, x, y)
+            ln_probs.append(ln_prob)
+        return np.asarray(ln_probs)
+
+    def posterior_ln_prob(self, x, y, thin=10):
+        """
+            posterior log p(y|x,D)
+
+            1/S sum p(y|D,theta_s)
+            equivalent to:
+            logsumexp(log p(y|D,theta_s)) - log(S)
+        """
+        assert not np.isscalar(x)
+        assert not np.isscalar(y)
+        x = np.asarray(x)
+        y = np.asarray(y)
+        ln_probs = self.predictive_ln_prob_distribution(x, y)
+        return logsumexp(ln_probs) - np.log(len(ln_probs))
 
     def predict(self, x, thin=1):
         """

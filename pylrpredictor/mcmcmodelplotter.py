@@ -43,7 +43,7 @@ class MCMCCurveModelPlotter(object):
             labels=labels,
             truths=truths)
 
-    def posterior_sample_plot(self, x, y, vline=None,
+    def posterior_sample_plot(self, x, y=None, vline=None,
             xaxislabel="$x$", yaxislabel="$y$", alpha=0.3,
             label="", color="k", x_axis_scale=0.1, nsamples=50,
             plot_ml_estimate=False, ml_estimate_color="#4682b4",
@@ -52,7 +52,8 @@ class MCMCCurveModelPlotter(object):
 
         x_plot = x_axis_scale*np.asarray(x)
 
-        plot(x_plot, y, color="r", lw=2, alpha=0.8, rasterized=rasterized)
+        if y is not None:
+            plot(x_plot, y, color="r", lw=2, alpha=0.8, rasterized=rasterized)
 
         # Plot some samples onto the data.
         for idx, theta in enumerate(samples[np.random.randint(len(samples), size=nsamples)]):
@@ -123,17 +124,40 @@ class MCMCCurveModelCombinationPlotter(object):
     def triangle_plot(self, labels=None):
         samples = self.model.get_burned_in_samples()
         if labels is None:
-            labels = greek_label_mapping(self.model.all_param_names)
+            labels = ["$%s$" % (param_name) for model in self.model.fit_models for param_name in model.function_params]
+            labels.append("$sigma$")
+            labels.extend(["$w%d$" % idx for idx in range(len(self.model.fit_models))])
+            labels = greek_label_mapping(labels)
         fig = triangle.corner(samples,
             labels=labels)
 
+    def weights_triangle_plot(self, labels=None, thin=1):
+        samples = self.model.get_burned_in_samples()
+        if labels is None:
+            labels = ["w%d" % idx for idx in range(len(self.model.fit_models))]
+            #labels = greek_label_mapping(labels)
+            print labels
+        fig = triangle.corner(
+            samples[::thin,-len(self.model.fit_models):])#,
+            #labels=labels)
+
+    def weights_triangle_plot(self, labels=None, thin=1):
+        samples = self.model.get_burned_in_samples()
+        if labels is None:
+            labels = ["w%d" % idx for idx in range(len(self.model.fit_models))]
+            #labels = greek_label_mapping(labels)
+            print labels
+        fig = triangle.corner(
+            samples[::thin,-len(self.model.fit_models):])#,
+            #labels=labels)
 
     def posterior_plot(self, *args, **kwargs):
         self.posterior_sample_plot(*args, **kwargs)
 
-    def posterior_sample_plot(self, x, y, vline=None, alpha=0.1, label="",
+    def posterior_sample_plot(self, x, y=None, vline=None, alpha=0.1, label="",
             xaxislabel="$x$", yaxislabel="$y$", color="k", x_axis_scale=0.1,
-            x_lim=None):
+            x_lim=None, plot_individual=False, y_plot_lw=2,
+            rasterized=False):
         samples = self.model.get_burned_in_samples()
 
         if x_lim is None:
@@ -149,12 +173,14 @@ class MCMCCurveModelCombinationPlotter(object):
             predictive_mu, sigma = self.model.predict_given_theta(x_predict, theta)
 
             if idx == 0:
-                plot(x_plot, predictive_mu, color=color, alpha=alpha, label=label)
+                plot(x_plot, predictive_mu, color=color, alpha=alpha, label=label, rasterized=rasterized)
             else:
-                plot(x_plot, predictive_mu, color=color, alpha=alpha)
+                plot(x_plot, predictive_mu, color=color, alpha=alpha, rasterized=rasterized)
 
-            fill_between(x_plot, predictive_mu-2*sigma, predictive_mu+2*sigma, color=color, alpha=0.01)
-            continue
+            fill_between(x_plot, predictive_mu-2*sigma, predictive_mu+2*sigma, color=color,
+                rasterized=rasterized, alpha=0.01)
+            if not plot_individual:
+                continue
             #plot the contributions of the individual models:
             model_params, sigma, model_weights = self.model.split_theta(theta)
             if self.model.normalize_weights:
@@ -163,8 +189,8 @@ class MCMCCurveModelCombinationPlotter(object):
             else:
                 model_probs = model_weights
             for fit_model, model_color, model_prob, params in zip(self.model.fit_models, self.colors, model_probs, model_params):
-                if fit_model.function.__name__ != "ilog2":
-                    continue
+                #if fit_model.function.__name__ != "ilog2":
+                #    continue
                 try:
                     sub_model_predictive_mu = fit_model.function(x, *params)
                     #plot(x_plot, model_prob * sub_model_predictive_mu, color=model_color, alpha=alpha)
@@ -172,7 +198,8 @@ class MCMCCurveModelCombinationPlotter(object):
                 except:
                     print "error with model: ", fit_model.function.__name__
 
-        plot(x, y, color="r", lw=2, alpha=0.8)
+        if y is not None:
+            plot(x, y, color="r", lw=y_plot_lw, alpha=0.8, label="data")
         if vline is not None:
             axvline(x_axis_scale*vline, color="k")
         ylim(0, 1)
